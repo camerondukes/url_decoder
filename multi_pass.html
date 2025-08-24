@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Multi‑pass decoding — What & Why</title>
+  <style>
+    :root {
+      --bg: #0b0c10;
+      --panel: #12141a;
+      --ink: #e8eef6;
+      --muted: #9aa3af;
+      --accent: #4f46e5;
+      --accent-2: #22c55e;
+      --ring: rgba(79,70,229,.45);
+      --shadow: 0 10px 30px rgba(0,0,0,.35);
+      --radius: 18px;
+    }
+    @media (prefers-color-scheme: light) {
+      :root { --bg: #f6f7fb; --panel: #ffffff; --ink: #0f172a; --muted:#64748b; --shadow: 0 10px 24px rgba(2,6,23,.08); }
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body { margin: 0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, "Helvetica Neue", Arial, "Apple Color Emoji", "Segoe UI Emoji"; background: radial-gradient(1200px 600px at 80% -10%, rgba(79,70,229,.12), transparent), var(--bg); color: var(--ink); }
+    .wrap { max-width: 900px; margin: 6vh auto; padding: 24px; }
+    .card { background: var(--panel); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; border: 1px solid rgba(148,163,184,.12); }
+    header { padding: 28px 28px 8px; }
+    h1 { margin: 0; font-size: clamp(22px, 3vw, 32px); letter-spacing: .2px; }
+    p.sub { margin: 6px 0 0; color: var(--muted); font-size: 14px; }
+
+    .content { display: grid; gap: 18px; padding: 22px; }
+    h2 { font-size: 18px; margin: 8px 0; }
+    p, li { color: var(--ink); opacity: .9; }
+    .muted { color: var(--muted); }
+
+    .box { background: rgba(148,163,184,.08); border: 1px solid rgba(148,163,184,.15); border-radius: 14px; padding: 14px; }
+    .kbd { background: rgba(148,163,184,.2); padding: 2px 6px; border-radius: 6px; }
+    code, pre { font: 500 13px/1.4 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+    pre { margin: 0; white-space: pre-wrap; }
+
+    .controls { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+    .btn { cursor: pointer; border: 1px solid rgba(148,163,184,.2); border-radius: 12px; padding: 10px 14px; font-weight: 600; font-size: 14px; background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.0)); color: var(--ink); transition: transform .04s ease, filter .15s ease, border-color .15s ease; }
+    .btn:active { transform: translateY(1px); }
+    .btn.primary { border-color: transparent; background: linear-gradient(180deg, rgba(79,70,229,.9), rgba(79,70,229,.8)); box-shadow: 0 8px 20px rgba(79,70,229,.35); }
+    .btn.success { border-color: transparent; background: linear-gradient(180deg, rgba(34,197,94,.9), rgba(34,197,94,.8)); box-shadow: 0 8px 20px rgba(34,197,94,.3); }
+
+    a { color: var(--muted); }
+    .footer { padding: 0 22px 22px; color: var(--muted); font-size: 12px; display: flex; justify-content: space-between; }
+
+    textarea, input[type="text"] { width: 100%; background: #0d1117; color: var(--ink); border: 1px solid rgba(148,163,184,.18); border-radius: 14px; padding: 14px 14px; font: 500 14px/1.4 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; outline: none; transition: box-shadow .15s ease, border-color .15s ease, background .15s ease; }
+    textarea { min-height: 110px; resize: vertical; }
+    input[readonly] { background: #0f1320; }
+    textarea:focus, input:focus { border-color: var(--accent); box-shadow: 0 0 0 4px var(--ring); }
+
+    .rounds { font-size: 12px; color: var(--muted); }
+    ol.rounds-list { margin: 6px 0 0 18px; }
+    li.good { color: #22c55e; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <header>
+        <h1>Multi‑pass decoding</h1>
+        <p class="sub">Why some URLs need more than one decode and how this tool handles it.</p>
+      </header>
+
+      <div class="content">
+        <section class="box">
+          <h2>TL;DR</h2>
+          <p><strong>Multi‑pass decoding</strong> means running <code>decodeURIComponent()</code> repeatedly until the text no longer changes (or a safe limit is reached). This fixes links that were encoded more than once—common with redirects, tracking parameters, or URLs embedded inside other URLs.</p>
+        </section>
+
+        <section>
+          <h2>How it works (in this app)</h2>
+          <ol>
+            <li>Start with your raw input.</li>
+            <li>Optionally convert <code>+</code> to a space if you enabled that option.</li>
+            <li>Decode once with <code>decodeURIComponent()</code>.</li>
+            <li>If the result changed, decode again—up to <strong>6 rounds</strong> as a safety cap.</li>
+          </ol>
+          <p class="muted">Why a cap? Malformed input (like stray <code>%</code>) can throw or cause loops. A small cap keeps things safe and fast.</p>
+        </section>
+
+        <section>
+          <h2>When to use it</h2>
+          <ul>
+            <li>You see patterns like <code>%252F</code> (that’s an encoded <code>%2F</code>) sprinkled through the URL.</li>
+            <li>A single decode still leaves lots of <code>%xx</code> sequences visible.</li>
+            <li>The link came from a redirector or an email campaign URL with nested parameters.</li>
+          </ul>
+        </section>
+
+        <section>
+          <h2>Examples</h2>
+          <div class="box">
+            <p class="muted">Double‑encoded URL</p>
+            <pre>https%253A%252F%252Fexample.com%252Fpage%253Fq%253Dhello%2520world</pre>
+            <p>Decode once → <code>https%3A%2F%2Fexample.com%2Fpage%3Fq%3Dhello%20world</code><br/>Decode twice → <code>https://example.com/page?q=hello world</code></p>
+          </div>
+          <div class="box" style="margin-top:12px">
+            <p class="muted">Nested redirect parameter</p>
+            <pre>https%3A%2F%2Fredir.example%2F%3Fgoto%3Dhttps%253A%252F%252Fdocs.example%252Fintro</pre>
+            <p>Multi‑pass resolves the inner destination cleanly.</p>
+          </div>
+        </section>
+
+        <section>
+          <h2>Try it here</h2>
+          <p class="muted">Quick demo: paste an encoded string and see each round.</p>
+          <textarea id="demoInput" placeholder="Paste an encoded URL or string..."></textarea>
+          <div class="controls" style="margin-top:8px">
+            <label><input type="checkbox" id="plusAsSpace" checked> Treat <strong>+</strong> as space</label>
+            <button id="runBtn" class="btn primary">Run multi‑pass</button>
+            <button id="copyFinal" class="btn success" disabled>Copy final result</button>
+          </div>
+          <div id="results" class="box" style="margin-top:12px; display:none">
+            <div class="rounds">Rounds performed: <span id="roundCount">0</span></div>
+            <ol id="roundList" class="rounds-list"></ol>
+            <div style="margin-top:8px">
+              <label class="muted">Final result</label>
+              <input id="finalOut" type="text" readonly />
+            </div>
+          </div>
+        </section>
+
+        <section class="muted">
+          <h2>Notes & gotchas</h2>
+          <ul>
+            <li>If you see an error about invalid escape sequences, the input likely has a bad <code>%</code> sequence. Clean it up and try again.</li>
+            <li>Some characters must stay encoded inside real URLs (e.g., spaces as <code>%20</code> in the query). This page is about <em>revealing</em> the human‑readable string; it doesn’t auto‑re‑encode for navigation.</li>
+          </ul>
+        </section>
+      </div>
+
+      <div class="footer">
+        <div><a href="./" aria-label="Back to URL Decoder">← Back to the decoder</a></div>
+        <div>Tip: On the main page, toggle the <strong>multi‑pass decoding</strong> option to apply this logic automatically.</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function setVisible(el, show){ el.style.display = show ? '' : 'none'; }
+
+    function smartDecode(raw, { plusAsSpace = true, cap = 6 } = {}) {
+      if (typeof raw !== 'string') return { final: '', rounds: [], count: 0 };
+      let s = raw.trim();
+      if (!s) return { final: '', rounds: [], count: 0 };
+      if (plusAsSpace) s = s.replace(/\+/g, ' ');
+
+      const rounds = [];
+      let current = s;
+      let changed = false;
+      for (let i = 1; i <= cap; i++) {
+        try {
+          const next = decodeURIComponent(current);
+          rounds.push({ i, before: current, after: next });
+          changed = next !== current;
+          current = next;
+          if (!changed) break;
+        } catch (e) {
+          rounds.push({ i, before: current, after: '✖ error: invalid escape sequence', error: true });
+          break;
+        }
+      }
+      return { final: current, rounds, count: rounds.length };
+    }
+
+    const els = {
+      input: document.getElementById('demoInput'),
+      plusAsSpace: document.getElementById('plusAsSpace'),
+      runBtn: document.getElementById('runBtn'),
+      copyFinal: document.getElementById('copyFinal'),
+      results: document.getElementById('results'),
+      roundCount: document.getElementById('roundCount'),
+      roundList: document.getElementById('roundList'),
+      finalOut: document.getElementById('finalOut'),
+    };
+
+    function renderRounds(data){
+      els.roundList.innerHTML = '';
+      data.rounds.forEach(({ i, before, after, error }) => {
+        const li = document.createElement('li');
+        li.innerHTML = `<div><span class="muted">Round ${i}</span><pre class="box" style="margin-top:6px">${escapeHtml(before)}\n→ ${error ? '<span style="color:#ef4444">' + escapeHtml(after) + '</span>' : escapeHtml(after)}</pre></div>`;
+        if (!error && before === after) li.classList.add('good');
+        els.roundList.appendChild(li);
+      });
+      els.roundCount.textContent = data.count;
+      els.finalOut.value = data.final;
+      els.copyFinal.disabled = !data.final || /error:/.test(data.final);
+      setVisible(els.results, true);
+    }
+
+    function escapeHtml(s){
+      return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c]));
+    }
+
+    els.runBtn.addEventListener('click', () => {
+      const data = smartDecode(els.input.value, { plusAsSpace: els.plusAsSpace.checked });
+      renderRounds(data);
+    });
+
+    els.copyFinal.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(els.finalOut.value);
+        els.copyFinal.textContent = 'Copied ✔';
+        setTimeout(() => els.copyFinal.textContent = 'Copy final result', 1200);
+      } catch (e) {
+        alert('Copy failed. You can manually select and copy.');
+      }
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>URL Decoder</title>
+  <style>
+    :root {
+      --bg: #0b0c10;
+      --panel: #12141a;
+      --ink: #e8eef6;
+      --muted: #9aa3af;
+      --accent: #4f46e5;
+      --accent-2: #22c55e;
+      --danger: #ef4444;
+      --ring: rgba(79,70,229,.45);
+      --shadow: 0 10px 30px rgba(0,0,0,.35);
+      --radius: 18px;
+    }
+    @media (prefers-color-scheme: light) {
+      :root { --bg: #f6f7fb; --panel: #ffffff; --ink: #0f172a; --muted:#64748b; --shadow: 0 10px 24px rgba(2,6,23,.08); }
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body { margin: 0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, "Helvetica Neue", Arial, "Apple Color Emoji", "Segoe UI Emoji"; background: radial-gradient(1200px 600px at 80% -10%, rgba(79,70,229,.12), transparent), var(--bg); color: var(--ink); }
+    .wrap { max-width: 900px; margin: 6vh auto; padding: 24px; }
+    .card { background: var(--panel); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; border: 1px solid rgba(148,163,184,.12); }
+    header { padding: 28px 28px 8px; }
+    h1 { margin: 0; font-size: clamp(22px, 3vw, 32px); letter-spacing: .2px; }
+    p.sub { margin: 6px 0 0; color: var(--muted); font-size: 14px; }
+
+    .grid { display: grid; gap: 18px; padding: 22px; }
+    .row { display: grid; gap: 12px; }
+
+    label { font-size: 13px; color: var(--muted); }
+    textarea, input[type="text"] { width: 100%; background: #0d1117; color: var(--ink); border: 1px solid rgba(148,163,184,.18); border-radius: 14px; padding: 14px 14px; font: 500 14px/1.4 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; outline: none; transition: box-shadow .15s ease, border-color .15s ease, background .15s ease; }
+    textarea { min-height: 110px; resize: vertical; }
+    input[readonly] { background: #0f1320; }
+    textarea:focus, input:focus { border-color: var(--accent); box-shadow: 0 0 0 4px var(--ring); }
+
+    .controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+    .controls .spacer { flex: 1 1 auto; }
+
+    .btn { cursor: pointer; border: 1px solid rgba(148,163,184,.2); border-radius: 12px; padding: 10px 14px; font-weight: 600; font-size: 14px; background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.0)); color: var(--ink); transition: transform .04s ease, filter .15s ease, border-color .15s ease; }
+    .btn:active { transform: translateY(1px); }
+    .btn.primary { border-color: transparent; background: linear-gradient(180deg, rgba(79,70,229,.9), rgba(79,70,229,.8)); box-shadow: 0 8px 20px rgba(79,70,229,.35); }
+    .btn.success { border-color: transparent; background: linear-gradient(180deg, rgba(34,197,94,.9), rgba(34,197,94,.8)); box-shadow: 0 8px 20px rgba(34,197,94,.3); }
+    .btn.ghost { background: transparent; }
+    .btn[disabled] { opacity: .6; cursor: not-allowed; }
+
+    .options { display: flex; gap: 16px; align-items: center; color: var(--muted); font-size: 13px; }
+    .options input { transform: translateY(1px); }
+
+    .status { font-size: 13px; color: var(--muted); min-height: 20px; padding: 0 2px; }
+    .status.error { color: var(--danger); }
+
+    footer { padding: 10px 22px 24px; display: flex; justify-content: space-between; align-items: center; color: var(--muted); font-size: 12px; }
+    code.kbd { background: rgba(148,163,184,.2); padding: 2px 6px; border-radius: 6px; }
+    a { color: var(--muted); }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card" role="application" aria-label="URL decoder">
+      <header>
+        <h1>URL Decoder</h1>
+        <p class="sub">Paste any encoded URL below, then decode it. Copy the result with one click.</p>
+      </header>
+
+      <div class="grid">
+        <div class="row">
+          <label for="input">Encoded URL</label>
+          <textarea id="input" placeholder="e.g. https%3A%2F%2Fexample.com%2Fsearch%3Fq%3Dhello%2520world"></textarea>
+        </div>
+
+        <div class="options" aria-label="decoder options">
+          <label><input type="checkbox" id="plusAsSpace" checked /> Treat <strong>+</strong> as space</label>
+          <label><input type="checkbox" id="multiPass" /> Try <a href="multi_pass.html" target="_blank">multi‑pass decoding</a></label>
+        </div>
+
+        <div class="controls">
+          <button id="decodeBtn" class="btn primary" aria-label="Decode the URL">Decode URL</button>
+          <button id="clearBtn" class="btn ghost" aria-label="Clear inputs">Clear</button>
+          <span class="spacer"></span>
+          <button id="copyBtn" class="btn success" disabled aria-label="Copy decoded URL to clipboard">Copy decoded URL</button>
+        </div>
+
+        <div class="row">
+          <label for="output">Decoded URL</label>
+          <input id="output" type="text" readonly placeholder="Decoded URL will appear here" />
+        </div>
+
+        <div id="status" class="status" aria-live="polite"></div>
+      </div>
+
+      <footer>
+        <div>Tip: Press <code class="kbd">Ctrl/⌘ + Enter</code> to decode.</div>
+        <div><a href="#" id="example">Use an example</a></div>
+      </footer>
+    </div>
+  </div>
+
+  <script>
+    const els = {
+      input: document.getElementById('input'),
+      output: document.getElementById('output'),
+      plusAsSpace: document.getElementById('plusAsSpace'),
+      multiPass: document.getElementById('multiPass'),
+      decodeBtn: document.getElementById('decodeBtn'),
+      copyBtn: document.getElementById('copyBtn'),
+      clearBtn: document.getElementById('clearBtn'),
+      status: document.getElementById('status'),
+      example: document.getElementById('example'),
+    };
+
+    function setStatus(msg, { error = false } = {}) {
+      els.status.textContent = msg || '';
+      els.status.classList.toggle('error', !!error);
+    }
+
+    function smartDecode(raw, { plusAsSpace = true, multiPass = false } = {}) {
+      if (typeof raw !== 'string') return '';
+      let s = raw.trim();
+      if (!s) return '';
+      if (plusAsSpace) s = s.replace(/\+/g, ' ');
+
+      let previous = null;
+      let current = s;
+      let rounds = 0;
+
+      do {
+        previous = current;
+        current = decodeURIComponent(previous);
+        rounds++;
+      } while (multiPass && current !== previous && rounds < 6);
+
+      return current;
+    }
+
+    function decodeHandler() {
+      const raw = els.input.value;
+      if (!raw.trim()) {
+        setStatus('Please paste an encoded URL to decode.');
+        return;
+      }
+      try {
+        const decoded = smartDecode(raw, { plusAsSpace: els.plusAsSpace.checked, multiPass: els.multiPass.checked });
+        els.output.value = decoded;
+        els.copyBtn.disabled = !decoded;
+        setStatus('Decoded successfully.');
+      } catch (err) {
+        console.error(err);
+        els.output.value = '';
+        els.copyBtn.disabled = true;
+        setStatus('Could not decode: the string contains invalid escape sequences (bad % encoding).', { error: true });
+      }
+    }
+
+    async function copyHandler() {
+      const text = els.output.value;
+      if (!text) return;
+      try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          await navigator.clipboard.writeText(text);
+        } else {
+          const tmp = document.createElement('textarea');
+          tmp.value = text;
+          tmp.style.position = 'fixed';
+          tmp.style.left = '-9999px';
+          document.body.appendChild(tmp);
+          tmp.focus();
+          tmp.select();
+          document.execCommand('copy');
+          document.body.removeChild(tmp);
+        }
+        setStatus('Copied to clipboard ✔');
+      } catch (e) {
+        console.error(e);
+        setStatus('Copy failed. You can manually select and copy.', { error: true });
+      }
+    }
+
+    function clearHandler() {
+      els.input.value = '';
+      els.output.value = '';
+      els.copyBtn.disabled = true;
+      setStatus('');
+      els.input.focus();
+    }
+
+    document.addEventListener('keydown', (e) => {
+      const mod = e.ctrlKey || e.metaKey;
+      if (mod && e.key === 'Enter') {
+        e.preventDefault();
+        decodeHandler();
+      }
+    });
+
+    els.decodeBtn.addEventListener('click', decodeHandler);
+    els.copyBtn.addEventListener('click', copyHandler);
+    els.clearBtn.addEventListener('click', clearHandler);
+
+    els.example.addEventListener('click', (e) => {
+      e.preventDefault();
+      els.input.value = 'https%3A%2F%2Fexample.com%2Fsearch%3Fq%3DOpenAI%2BURL%2520decoder%26utm_source%3Dnewsletter%26redirect%3Dhttps%253A%252F%252Fexample.com%252Fdocs%252Fintro';
+      setStatus('Loaded example. Click “Decode URL” or press Ctrl/⌘ + Enter.');
+      els.input.focus();
+    });
+
+    const persistKeys = ['plusAsSpace', 'multiPass'];
+    persistKeys.forEach((k) => {
+      const el = els[k];
+      const stored = sessionStorage.getItem(k);
+      if (stored !== null) el.checked = stored === 'true';
+      el.addEventListener('change', () => sessionStorage.setItem(k, el.checked));
+    });
+
+    els.output.addEventListener('input', () => {
+      els.copyBtn.disabled = !els.output.value;
+    });
+  </script>
+</body>
+</html>
